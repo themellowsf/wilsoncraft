@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Wilson Games</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0a1230">
+<meta name="robots" content="noindex, nofollow">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="icon" type="image/png" href="icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Wilson Games">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<style id="lock-style">
+  html, body { margin: 0; height: 100%; }
+  body { display: flex; align-items: center; justify-content: center; background: linear-gradient(#5aa2e0, #9ed4f5 55%, #6fa84a 55%, #5c8f3c); font-family: "Segoe UI", Helvetica, Arial, sans-serif; color: #fff; }
+  #lock { background: rgba(20, 28, 60, .9); border: 3px solid #3b4670; border-radius: 14px; padding: 24px 28px; width: min(340px, 90vw); text-align: center; box-shadow: 0 10px 40px rgba(0,0,0,.4); }
+  #lock img { width: 88px; height: 88px; border-radius: 18px; }
+  #lock h1 { margin: 8px 0 16px; font-size: 32px; text-shadow: 2px 2px 0 #000; }
+  #lock input[type=password] { width: 100%; box-sizing: border-box; font-size: 22px; padding: 10px 12px; border-radius: 8px; border: 2px solid #3b4670; text-align: center; letter-spacing: 3px; }
+  #lock label { display: block; margin: 12px 0; font-size: 15px; opacity: .9; }
+  #lock button { background: #6b8f3a; border: 3px solid #2e4416; border-bottom-width: 5px; color: #fff; font-size: 19px; font-weight: 700; padding: 10px 28px; border-radius: 8px; cursor: pointer; }
+  #msg { min-height: 1.2em; margin: 10px 0 0; color: #ffd27a; }
+</style>
+</head>
+<body>
+<form id="lock" autocomplete="off" style="display:none">
+  <img src="icons/icon-192.png" alt="">
+  <h1>Wilson Games</h1>
+  <input id="pw" type="password" placeholder="Password" autocomplete="current-password">
+  <label><input id="remember" type="checkbox" checked> Remember on this device</label>
+  <button id="go">Play</button>
+  <p id="msg"></p>
+</form>
+<script>
+(async function () {
+  const KEY = 'wilsoncraft.key';
+  const b64 = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
+  const tob64 = (u) => btoa(String.fromCharCode.apply(null, u));
+  const form = document.getElementById('lock'), msg = document.getElementById('msg');
+  let box;
+  try { box = await (await fetch('app.json')).json(); } catch (e) { form.style.display = ''; msg.textContent = 'Could not load the game - check the internet connection.'; return; }
+  async function unlock(raw) {
+    const key = await crypto.subtle.importKey('raw', raw, 'AES-GCM', false, ['decrypt']);
+    const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: b64(box.iv) }, key, b64(box.data));
+    return JSON.parse(new TextDecoder().decode(plain));
+  }
+  async function derive(password) {
+    const base = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveBits']);
+    return new Uint8Array(await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: b64(box.salt), iterations: box.iter }, base, 256));
+  }
+  async function start(bundle) { // swap the login page for the page that was asked for (landing, WilsonCraft or Super Wilson World)
+    const name = decodeURIComponent(location.pathname.split('/').pop() || '') || 'index.html';
+    const app = bundle.pages[name] || bundle.pages['index.html'];
+    for (const src of app.public) await new Promise((res, rej) => { const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = rej; document.head.appendChild(s); });
+    document.getElementById('lock-style').remove();
+    document.title = app.title;
+    document.head.insertAdjacentHTML('beforeend', app.head);
+    document.body.innerHTML = app.body;
+    for (const code of app.scripts) { const s = document.createElement('script'); s.textContent = code; document.body.appendChild(s); }
+  }
+  let saved = null; try { saved = localStorage.getItem(KEY); } catch (e) { /* private mode */ }
+  if (saved) {
+    try { return start(await unlock(b64(saved))); }
+    catch (e) { try { localStorage.removeItem(KEY); } catch (e2) { /* ignore */ } } // password was changed: ask again
+  }
+  form.style.display = '';
+  document.getElementById('pw').focus();
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = document.getElementById('go'); btn.disabled = true; msg.textContent = 'Opening...';
+    try {
+      const raw = await derive(document.getElementById('pw').value);
+      const app = await unlock(raw);
+      if (document.getElementById('remember').checked) { try { localStorage.setItem(KEY, tob64(raw)); } catch (e2) { /* ignore */ } }
+      start(app);
+    } catch (err) {
+      msg.textContent = 'Wrong password - try again.'; btn.disabled = false;
+      document.getElementById('pw').select();
+    }
+  });
+})();
+</script>
+</body>
+</html>

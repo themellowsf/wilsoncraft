@@ -1,0 +1,16 @@
+{
+  "name": "Wilson Games",
+  "short_name": "Wilson Games",
+  "description": "Two games set in Franklin, Tennessee: a block world and a side-scroller.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "any",
+  "background_color": "#0a1230",
+  "theme_color": "#0a1230",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
